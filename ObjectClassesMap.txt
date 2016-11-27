@@ -28,4 +28,3 @@
 0 0.3137 0.3922 28 train
 0 0 0.9020 29 motorcycle
 0.4667 0.0431 0.1255 30 bicycle
-0 0 0.5569 31 license-plate
