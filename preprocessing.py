@@ -53,13 +53,13 @@ def read_object_classes(classes_map_filename):
         category_names[cat_id] = ids_to_names[cat_id]
         category_colors[cat_id] = ids_to_cols[cat_id]
 
-    return category_colors, cols_to_ids, category_names, names_to_ids, ids_to_names
+    return category_colors, cols_to_ids, category_names, names_to_ids
 
 
 def main():
     filename = sys.argv[1]
 
-    category_colors, cols_to_ids, category_names, names_to_ids, ids_to_names = read_object_classes(filename)
+    category_colors, cols_to_ids, category_names, names_to_ids = read_object_classes(filename)
     print category_colors
     print cols_to_ids
     print category_names
