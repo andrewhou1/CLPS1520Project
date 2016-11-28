@@ -64,7 +64,6 @@ def main():
     print cols_to_ids
     print category_names
     print names_to_ids
-    print ids_to_names
 
 
 if __name__ == '__main__':
