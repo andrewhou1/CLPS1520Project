@@ -1,4 +1,7 @@
 import sys
+from PIL import Image
+import numpy as np
+
 
 def read_object_classes(classes_map_filename):
     """
@@ -47,8 +50,8 @@ def read_object_classes(classes_map_filename):
                 continue
 
     max_id = max(ids)
-    category_colors = [None] * (max_id+1)
-    category_names = [None] * (max_id+1)
+    category_colors = [None] * (max_id + 1)
+    category_names = [None] * (max_id + 1)
     for cat_id in ids:
         category_names[cat_id] = ids_to_names[cat_id]
         category_colors[cat_id] = ids_to_cols[cat_id]
@@ -56,14 +59,53 @@ def read_object_classes(classes_map_filename):
     return category_colors, cols_to_ids, category_names, names_to_ids
 
 
-def main():
-    filename = sys.argv[1]
+def image_to_np_array(img_filename, float_cols=True):
+    """
+    Reads an image into a numpy array, with shape [height x width x 3]
+    Each pixel is represented by 3 RGB values, either as floats in [0, 1] or as ints in [0, 255]
+    :param img_filename: The filename of the image to load
+    :param float_cols: Whether to load colors as floats in [0, 1] or as ints in [0, 255]
+    :return: A numpy array containing the image data
+    """
+    img = Image.open(img_filename)
+    img.load()
+    print "&&&&&&&&", list(img.getdata())[0]
+    if float_cols:
+        data = np.asarray(img, dtype="float32") / 255.0
+    else:
+        data = np.asarray(img, dtype="uint8")
+    return data
 
-    category_colors, cols_to_ids, category_names, names_to_ids = read_object_classes(filename)
+
+def labels_to_np_array(lab_filename):
+    """
+    Reads an image of category labels as a numpy array of category IDs.
+    NOTE: The image data must already be in a color pallette such that color # corresponds to label ID.
+    The "Playing for Data" dataset is configured in this way (http://download.visinf.tu-darmstadt.de/data/from_games/)
+    :param lab_filename: The filename of the label image to load
+    :return: A numpy array containing the label ID for each pixel
+    """
+    img = Image.open(lab_filename)
+    img.load()
+    data = np.asarray(img, dtype="int32")
+    return data
+
+
+def main():
+    map_filename, label_filename, image_filename = sys.argv[1:]
+
+    category_colors, cols_to_ids, category_names, names_to_ids = read_object_classes(map_filename)
     print category_colors
     print cols_to_ids
     print category_names
     print names_to_ids
+
+    lab = labels_to_np_array(label_filename)
+    print lab
+    print [category_names[cat_id] for row in lab for cat_id in row]
+
+    img = image_to_np_array(image_filename)
+    print img
 
 
 if __name__ == '__main__':
