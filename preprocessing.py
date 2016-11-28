@@ -1,6 +1,11 @@
+"""
+Code for preprocessing and loading image and label data.
+"""
+
 import sys
-from PIL import Image
+
 import numpy as np
+from PIL import Image
 
 
 def read_object_classes(classes_map_filename):
@@ -69,7 +74,6 @@ def image_to_np_array(img_filename, float_cols=True):
     """
     img = Image.open(img_filename)
     img.load()
-    print "&&&&&&&&", list(img.getdata())[0]
     if float_cols:
         data = np.asarray(img, dtype="float32") / 255.0
     else:
@@ -89,24 +93,3 @@ def labels_to_np_array(lab_filename):
     img.load()
     data = np.asarray(img, dtype="int32")
     return data
-
-
-def main():
-    map_filename, label_filename, image_filename = sys.argv[1:]
-
-    category_colors, cols_to_ids, category_names, names_to_ids = read_object_classes(map_filename)
-    print category_colors
-    print cols_to_ids
-    print category_names
-    print names_to_ids
-
-    lab = labels_to_np_array(label_filename)
-    print lab
-    print [category_names[cat_id] for row in lab for cat_id in row]
-
-    img = image_to_np_array(image_filename)
-    print img
-
-
-if __name__ == '__main__':
-    main()
