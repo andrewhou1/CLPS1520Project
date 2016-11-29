@@ -16,7 +16,7 @@ class objectModel:
 		b_conv1 = tf.Variable(tf.constant(0.1, shape = [25]))
 		
 		h_conv1 = tf.nn.conv2d(self.inpt, W_conv1, strides = [1, 2, 2, 1], padding='SAME')+b_conv1
-		h_pool1 = tf.nn.max_pool(self.inpt, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = 'SAME')
+		h_pool1 = tf.nn.max_pool(h_conv1, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = 'SAME')
 
 		tanh = tf.tanh(h_pool1)
 		
