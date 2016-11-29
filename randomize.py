@@ -22,8 +22,6 @@ def Randomized_Ind():
 
 #print Ind_list()
 #print Randomized_Ind()
-# print randomized list
-#print random.sample(Ind_list(),Img_num)
 
 
 
@@ -42,7 +40,8 @@ if Img_num%5==0:
         
     first_fold, second_fold, third_fold, fourth_fold, fifth_fold = Folds()
 
-print first_fold
+# print example fold for testing purposes
+#print first_fold
 
 
 
