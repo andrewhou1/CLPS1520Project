@@ -36,6 +36,13 @@ class CNNModel:
         print "&&&& h_conv3", h_conv3.get_shape()
 
         # figure out the frickin logits reshaping
-        self.logits = tf.reshape(h_conv3, [1, 1, num_classes])
+        # shape is [batch_size x width x height x num_categories]
+        conv3_shape = tf.shape(h_conv3)
+        conv3_height = conv3_shape[1]
+        conv3_width = conv3_shape[2]
+
+        # TODO don't hardcode this slice
+        center_pixel = tf.slice(h_conv3, begin=[0, conv3_height / 2, conv3_width / 2, 0], size=[1, 1, 1, 31])
+        self.logits = tf.reshape(center_pixel, [1, 1, num_classes])
         self.error = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.output))
         self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.error)
