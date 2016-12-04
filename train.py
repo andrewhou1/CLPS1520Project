@@ -51,7 +51,7 @@ def train(sess, model, train_files, num_epochs, patches_per_image=1000, save_pat
                 os.path.basename(image_f), error_per_image / patches_per_image)
 
         if save_path is not None:
-            print "Epoch %i finished, saving trained model to %s ..." % (i + 1, save_path)
+            print "Epoch %i finished, saving trained model to %s..." % (i + 1, save_path)
             save_model(sess, save_path)
 
 
