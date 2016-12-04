@@ -121,3 +121,8 @@ def get_patch(array, center, patch_size):
     rounded_width = patch_size // 2
     return array[center[0] - rounded_width: center[0] + rounded_width + 1,
                  center[1] - rounded_width: center[1] + rounded_width + 1]
+
+if __name__ == '__main__':
+    colors_map, infile, outfile = sys.argv[1:]
+    labels = labels_to_np_array(infile)
+    save_labels_array()

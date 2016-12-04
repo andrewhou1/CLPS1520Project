@@ -82,7 +82,7 @@ def main():
     train_files = train_files[:num_train]
     num_classes = len(category_names)
 
-    model = CNNModel(args.hidden_size_1, args.hidden_size_2, args.patch_size, args.batch_size, num_classes,
+    model = CNNModel(args.hidden_size_1, args.hidden_size_2, args.batch_size, num_classes,
                      args.learning_rate)
 
     sess = tf.Session()
