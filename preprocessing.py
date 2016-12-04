@@ -88,5 +88,36 @@ def labels_to_np_array(lab_filename):
     """
     img = Image.open(lab_filename)
     img.load()
-    data = np.asarray(img, dtype="int32")
+    data = np.asarray(img, dtype="uint8")
     return data
+
+
+def save_labels_array(labels, output_filename, colors):
+    """
+    Saves a numpy array of labels to an paletted image.
+    :param colors: An array of colors for each index. Should correspond to label ID's in 'labels'
+    :param labels: A 2D array of labels
+    :param output_filename: The filename of the image to output
+    """
+    img = Image.fromarray(obj=labels, mode="P")
+    # palette is a flattened array of r,g,b values, repreesnting the colors in the palette in order.
+    palette = []
+    for c in colors:
+        palette.extend(c)
+    img.putpalette(palette)
+    img.save(output_filename)
+
+
+def get_patch(array, center, patch_size):
+    """
+    Returns a square 2D patch of an array with a given size and center. Also returns other dimensions of the array,
+    uncropped.
+    NOTE: does not do bounds checking.
+    :param array: A numpy array
+    :param center: The coordinates of the center, as a list or array of length 2
+    :param patch_size: A single number representing the width and height of the patch.
+    :return: A square patch of the image with the given center and size.
+    """
+    rounded_width = patch_size // 2
+    return array[center[0] - rounded_width: center[0] + rounded_width + 1,
+                 center[1] - rounded_width: center[1] + rounded_width + 1]

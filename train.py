@@ -7,24 +7,9 @@ from os.path import isfile
 import numpy as np
 import tensorflow as tf
 
-from model import CNNModel
-from preprocessing import read_object_classes, labels_to_np_array, image_to_np_array
+from model import CNNModel, save_model
+from preprocessing import read_object_classes, labels_to_np_array, image_to_np_array, get_patch
 from randomPixels import gencoordinates
-
-
-def get_patch(array, center, patch_size):
-    """
-    Returns a square 2D patch of an array with a given size and center. Also returns other dimensions of the array,
-    uncropped.
-    NOTE: does not do bounds checking.
-    :param array: A numpy array
-    :param center: The coordinates of the center, as a list or array of length 2
-    :param patch_size: A single number representing the width and height of the patch.
-    :return:
-    """
-    rounded_width = patch_size // 2
-    return array[center[0] - rounded_width: center[0] + rounded_width + 1,
-                 center[1] - rounded_width: center[1] + rounded_width + 1]
 
 
 def train(sess, model, train_files, num_epochs, patches_per_image=1000, save_path=None):
@@ -41,10 +26,12 @@ def train(sess, model, train_files, num_epochs, patches_per_image=1000, save_pat
             for _ in range(patches_per_image):
                 patch_center = next(coords_iter)
                 input_image = get_patch(image, patch_center, model.patch_size)
-                input_image = np.append(input_image, np.zeros(shape=[model.patch_size, model.patch_size, 1], dtype=np.float32), axis=2)
+                input_image = np.append(input_image,
+                                        np.zeros(shape=[model.patch_size, model.patch_size, 1], dtype=np.float32),
+                                        axis=2)
                 input_label = labels[patch_center[0], patch_center[1]]
                 feed_dict = {model.inpt: [input_image], model.output: [[input_label]]}
-                error, _, logits = sess.run([model.error, model.train_step, model.logits], feed_dict=feed_dict)
+                error, _ = sess.run([model.error, model.train_step], feed_dict=feed_dict)
                 error_per_image += error
 
             print "Average error for this image (%s): %f" % (
@@ -53,38 +40,6 @@ def train(sess, model, train_files, num_epochs, patches_per_image=1000, save_pat
         if save_path is not None:
             print "Epoch %i finished, saving trained model to %s..." % (i + 1, save_path)
             save_model(sess, save_path)
-
-
-def save_model(sess, path, saver=None):
-    """
-    Saves a tensorflow session to the given path.
-    NOTE: This currently saves *all* variables in the session, unless one passes in a custom Saver object.
-    :param sess: The tensorflow session to save from
-    :param path: The path to store the saved data
-    :param saver: A custom saver object to use. This can be used to only save certain variables. If None,
-    creates a saver object that saves all variables.
-    :return: The saver object used.
-    """
-    if saver is None:
-        saver = tf.train.Saver(tf.all_variables())
-    saver.save(sess, path)
-    return saver
-
-
-def restore_model(sess, path, saver=None):
-    """
-    Loads a tensorflow session from the given path.
-    NOTE: This currently loads *all* variables in the saved file, unless one passes in a custom Saver object.
-    :param sess: The tensorflow checkpoint to load from
-    :param path: The path to the saved data
-    :param saver: A custom saver object to use. This can be used to only load certain variables. If None,
-    creates a saver object that loads all variables.
-    :return: The saver object used.
-    """
-    if saver is None:
-        saver = tf.train.Saver(tf.all_variables())
-    saver.restore(sess, path)
-    return saver
 
 
 def main():
@@ -104,7 +59,7 @@ def main():
                         help='Number of patches to sample for each image during training of CNN model')
     parser.add_argument('--fix_random_seed', action='store_true', default=False,
                         help='Whether to reset random seed at start, for debugging.')
-    parser.add_argument('--model_save_path', type=str, default=None,
+    parser.add_argument('--model_save_path', type=argparse.FileType('r'), default=None,
                         help='Optional location to store saved model in.')
 
     args = parser.parse_args()

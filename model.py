@@ -1,6 +1,10 @@
 import tensorflow as tf
 
 
+# TODO instead of adding only one channel for labels, the labels should be 1-hot vectors, so we need 3+num_channels
+# layers to the input
+
+
 class CNNModel:
     def __init__(self, hidden_size_1, hidden_size_2, patch_size, batch_size, num_classes, learning_rate):
         # TODO fix padding
@@ -48,3 +52,35 @@ class CNNModel:
         self.logits = tf.reshape(center_pixel, [1, 1, self.num_classes])
         self.error = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.output))
         self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.error)
+
+
+def save_model(sess, path, saver=None):
+    """
+    Saves a tensorflow session to the given path.
+    NOTE: This currently saves *all* variables in the session, unless one passes in a custom Saver object.
+    :param sess: The tensorflow session to save from
+    :param path: The path to store the saved data
+    :param saver: A custom saver object to use. This can be used to only save certain variables. If None,
+    creates a saver object that saves all variables.
+    :return: The saver object used.
+    """
+    if saver is None:
+        saver = tf.train.Saver(tf.all_variables())
+    saver.save(sess, path)
+    return saver
+
+
+def restore_model(sess, path, saver=None):
+    """
+    Loads a tensorflow session from the given path.
+    NOTE: This currently loads *all* variables in the saved file, unless one passes in a custom Saver object.
+    :param sess: The tensorflow checkpoint to load from
+    :param path: The path to the saved data
+    :param saver: A custom saver object to use. This can be used to only load certain variables. If None,
+    creates a saver object that loads all variables.
+    :return: The saver object used.
+    """
+    if saver is None:
+        saver = tf.train.Saver(tf.all_variables())
+    saver.restore(sess, path)
+    return saver
