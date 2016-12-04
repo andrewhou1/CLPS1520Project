@@ -2,12 +2,12 @@
 import argparse
 import os
 import random
-
 from os.path import isfile
 
-from model import CNNModel
+import numpy as np
 import tensorflow as tf
 
+from model import CNNModel
 from preprocessing import read_object_classes, labels_to_np_array, image_to_np_array
 from randomPixels import gencoordinates
 
@@ -24,10 +24,10 @@ def get_patch(array, center, patch_size):
     """
     rounded_width = patch_size // 2
     return array[center[0] - rounded_width: center[0] + rounded_width + 1,
-           center[1] - rounded_width: center[1] + rounded_width + 1]
+                 center[1] - rounded_width: center[1] + rounded_width + 1]
 
 
-def train(sess, model, train_files, num_epochs, patches_per_image=1000):
+def train(sess, model, train_files, num_epochs, patches_per_image=1000, save_path=None):
     for i in range(num_epochs):
         print 'Running epoch %d/%d...' % (i + 1, num_epochs)
         for label_f, image_f in train_files:
@@ -41,13 +41,18 @@ def train(sess, model, train_files, num_epochs, patches_per_image=1000):
             for _ in range(patches_per_image):
                 patch_center = next(coords_iter)
                 input_image = get_patch(image, patch_center, model.patch_size)
+                input_image = np.append(input_image, np.zeros(shape=[model.patch_size, model.patch_size, 1], dtype=np.float32), axis=2)
                 input_label = labels[patch_center[0], patch_center[1]]
                 feed_dict = {model.inpt: [input_image], model.output: [[input_label]]}
                 error, _, logits = sess.run([model.error, model.train_step, model.logits], feed_dict=feed_dict)
                 error_per_image += error
 
             print "Average error for this image (%s): %f" % (
-            os.path.basename(image_f), error_per_image / patches_per_image)
+                os.path.basename(image_f), error_per_image / patches_per_image)
+
+        if save_path is not None:
+            print "Epoch %i finished, saving trained model to %s ..." % (i + 1, save_path)
+            save_model(sess, save_path)
 
 
 def save_model(sess, path, saver=None):
@@ -128,7 +133,8 @@ def main():
     sess = tf.Session()
     init = tf.initialize_all_variables()
     sess.run(init)
-    train(sess, model, train_files, num_epochs=args.num_epochs, patches_per_image=args.patches_per_image)
+    train(sess, model, train_files, num_epochs=args.num_epochs, patches_per_image=args.patches_per_image,
+          save_path=args.model_save_path)
 
     print "Saving trained model to %s ..." % args.model_save_path
     save_model(sess, args.model_save_path)

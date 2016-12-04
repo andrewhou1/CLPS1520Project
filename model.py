@@ -12,11 +12,11 @@ class CNNModel:
         self.num_classes = num_classes
 
         print "params:", batch_size, patch_size, hidden_size_1, hidden_size_2, self.num_classes
-        self.inpt = tf.placeholder(dtype=tf.float32, shape=[batch_size, patch_size, patch_size, 3])
+        self.inpt = tf.placeholder(dtype=tf.float32, shape=[batch_size, patch_size, patch_size, 4])
         print "**** input", self.inpt.get_shape()
         self.output = tf.placeholder(tf.int32, [1, 1])
 
-        W_conv1 = tf.Variable(tf.truncated_normal([8, 8, 3, self.hidden_size_1], stddev=0.1))
+        W_conv1 = tf.Variable(tf.truncated_normal([8, 8, 4, self.hidden_size_1], stddev=0.1))
         b_conv1 = tf.Variable(tf.constant(0.1, shape=[self.hidden_size_1]))
 
         h_conv1 = tf.nn.conv2d(self.inpt, W_conv1, strides=[1, 1, 1, 1], padding='SAME') + b_conv1
@@ -37,7 +37,7 @@ class CNNModel:
         print "&&&& h_conv3", h_conv3.get_shape()
 
         # figure out the frickin logits reshaping
-        # shape is [batch_size x width x height x num_categories]
+        # h_conv3 shape is [batch_size x width x height x num_categories]
         conv3_shape = tf.shape(h_conv3)
         conv3_height = conv3_shape[1]
         conv3_width = conv3_shape[2]
