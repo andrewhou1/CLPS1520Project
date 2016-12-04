@@ -24,16 +24,12 @@ def get_patch(array, center, patch_size):
     """
     rounded_width = patch_size // 2
     return array[center[0] - rounded_width: center[0] + rounded_width + 1,
-                 center[1] - rounded_width: center[1] + rounded_width + 1]
+           center[1] - rounded_width: center[1] + rounded_width + 1]
 
 
-def train(model, train_files, num_epochs, patches_per_image=1000):
-    sess = tf.Session()
-    init = tf.initialize_all_variables()
-    sess.run(init)
-
+def train(sess, model, train_files, num_epochs, patches_per_image=1000):
     for i in range(num_epochs):
-        print 'Running epoch %d/%d...' % (i+1, num_epochs)
+        print 'Running epoch %d/%d...' % (i + 1, num_epochs)
         for label_f, image_f in train_files:
             error_per_image = 0
             labels = labels_to_np_array(label_f)
@@ -50,7 +46,40 @@ def train(model, train_files, num_epochs, patches_per_image=1000):
                 error, _, logits = sess.run([model.error, model.train_step, model.logits], feed_dict=feed_dict)
                 error_per_image += error
 
-            print "Average error for this image (%s): %f" % (os.path.basename(image_f), error_per_image / patches_per_image)
+            print "Average error for this image (%s): %f" % (
+            os.path.basename(image_f), error_per_image / patches_per_image)
+
+
+def save_model(sess, path, saver=None):
+    """
+    Saves a tensorflow session to the given path.
+    NOTE: This currently saves *all* variables in the session, unless one passes in a custom Saver object.
+    :param sess: The tensorflow session to save from
+    :param path: The path to store the saved data
+    :param saver: A custom saver object to use. This can be used to only save certain variables. If None,
+    creates a saver object that saves all variables.
+    :return: The saver object used.
+    """
+    if saver is None:
+        saver = tf.train.Saver(tf.all_variables())
+    saver.save(sess, path)
+    return saver
+
+
+def restore_model(sess, path, saver=None):
+    """
+    Loads a tensorflow session from the given path.
+    NOTE: This currently loads *all* variables in the saved file, unless one passes in a custom Saver object.
+    :param sess: The tensorflow checkpoint to load from
+    :param path: The path to the saved data
+    :param saver: A custom saver object to use. This can be used to only load certain variables. If None,
+    creates a saver object that loads all variables.
+    :return: The saver object used.
+    """
+    if saver is None:
+        saver = tf.train.Saver(tf.all_variables())
+    saver.restore(sess, path)
+    return saver
 
 
 def main():
@@ -70,12 +99,13 @@ def main():
                         help='Number of patches to sample for each image during training of CNN model')
     parser.add_argument('--fix_random_seed', action='store_true', default=False,
                         help='Whether to reset random seed at start, for debugging.')
+    parser.add_argument('--model_save_path', type=str, default=None,
+                        help='Optional location to store saved model in.')
+
     args = parser.parse_args()
 
     if args.fix_random_seed:
         random.seed(0)
-
-
 
     # load class labels
     category_colors, category_names, names_to_ids = read_object_classes(args.category_map)
@@ -87,12 +117,21 @@ def main():
     labels = [os.path.join(labels_dir, f) for f in os.listdir(labels_dir) if isfile(os.path.join(labels_dir, f))]
     images = [os.path.join(images_dir, f) for f in os.listdir(images_dir) if isfile(os.path.join(images_dir, f))]
     train_files = zip(labels, images)
+    # train on 80% of data
+    num_train = int(len(train_files) * 0.8)
+    train_files = train_files[:num_train]
     num_classes = len(category_names)
-    print "*** NUM_CLASSES", num_classes
+
     model = CNNModel(args.hidden_size_1, args.hidden_size_2, args.patch_size, args.batch_size, num_classes,
                      args.learning_rate)
-    train(model, train_files, num_epochs=args.num_epochs, patches_per_image=args.patches_per_image)
-    pass
+
+    sess = tf.Session()
+    init = tf.initialize_all_variables()
+    sess.run(init)
+    train(sess, model, train_files, num_epochs=args.num_epochs, patches_per_image=args.patches_per_image)
+
+    print "Saving trained model to %s ..." % args.model_save_path
+    save_model(sess, args.model_save_path)
 
 
 if __name__ == '__main__':

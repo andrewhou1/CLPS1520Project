@@ -54,8 +54,6 @@ def read_object_classes(classes_map_filename):
     max_id = max(ids)
     category_colors = [None] * (max_id + 1)
     category_names = [None] * (max_id + 1)
-    print "MAX_ID", max_id
-    print "CATEGORY_NAMES LENGTH", len(category_names)
     for cat_id in ids:
         category_names[cat_id] = ids_to_names[cat_id]
         category_colors[cat_id] = ids_to_cols[cat_id]
