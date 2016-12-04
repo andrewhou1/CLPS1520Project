@@ -16,7 +16,7 @@ class CNNModel:
         self.num_classes = num_classes
 
         print "params:", batch_size, patch_size, hidden_size_1, hidden_size_2, self.num_classes
-        self.inpt = tf.placeholder(dtype=tf.float32, shape=[batch_size, patch_size, patch_size, 4])
+        self.inpt = tf.placeholder(dtype=tf.float32, shape=[batch_size, patch_size, patch_size, 3+num_classes])
         print "**** input", self.inpt.get_shape()
         self.output = tf.placeholder(tf.int32, [1, 1])
 
