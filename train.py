@@ -6,36 +6,38 @@ from os.path import isfile
 
 import numpy as np
 import tensorflow as tf
+import time
 
 from model import CNNModel, save_model
 from preprocessing import read_object_classes, labels_to_np_array, image_to_np_array, get_patch
 from randomPixels import gencoordinates
 
 
-def train(sess, model, train_files, num_epochs, patches_per_image=1000, save_path=None):
+def train(sess, model, train_files, num_epochs, patch_size, patches_per_image=1000, save_path=None):
     for i in range(num_epochs):
         print 'Running epoch %d/%d...' % (i + 1, num_epochs)
         for label_f, image_f in train_files:
             error_per_image = 0
+            start_time = time.time()
             labels = labels_to_np_array(label_f)
             image = image_to_np_array(image_f)
             h, w, _ = image.shape
-            coords_iter = gencoordinates(model.patch_size, h - model.patch_size - 1, model.patch_size,
-                                         w - model.patch_size - 1)
+            coords_iter = gencoordinates(patch_size, h - patch_size - 1, patch_size, w - patch_size - 1)
 
             for _ in range(patches_per_image):
                 patch_center = next(coords_iter)
-                input_image = get_patch(image, patch_center, model.patch_size)
+                input_image = get_patch(image, patch_center, patch_size)
                 input_image = np.append(input_image,
-                                        np.zeros(shape=[model.patch_size, model.patch_size, 1], dtype=np.float32),
+                                        np.zeros(shape=[patch_size, patch_size, model.num_classes],
+                                                 dtype=np.float32),
                                         axis=2)
                 input_label = labels[patch_center[0], patch_center[1]]
                 feed_dict = {model.inpt: [input_image], model.output: [[input_label]]}
-                error, _ = sess.run([model.error, model.train_step], feed_dict=feed_dict)
+                error, _ = sess.run([model.errors[1], model.train_step], feed_dict=feed_dict)
                 error_per_image += error
 
-            print "Average error for this image (%s): %f" % (
-                os.path.basename(image_f), error_per_image / patches_per_image)
+            print "Average error for this image (%s): %f (time: %ds)" % (
+                os.path.basename(image_f), error_per_image / patches_per_image, time.time() - start_time)
 
         if save_path is not None:
             print "Epoch %i finished, saving trained model to %s..." % (i + 1, save_path)
@@ -59,7 +61,7 @@ def main():
                         help='Number of patches to sample for each image during training of CNN model')
     parser.add_argument('--fix_random_seed', action='store_true', default=False,
                         help='Whether to reset random seed at start, for debugging.')
-    parser.add_argument('--model_save_path', type=argparse.FileType('r'), default=None,
+    parser.add_argument('--model_save_path', type=str, default=None,
                         help='Optional location to store saved model in.')
 
     args = parser.parse_args()
@@ -74,8 +76,10 @@ def main():
     images_dir = os.path.join(args.data_dir, 'images')
 
     # TODO get only image files
-    labels = [os.path.join(labels_dir, f) for f in os.listdir(labels_dir) if isfile(os.path.join(labels_dir, f))]
-    images = [os.path.join(images_dir, f) for f in os.listdir(images_dir) if isfile(os.path.join(images_dir, f))]
+    labels = [os.path.join(labels_dir, f) for f in os.listdir(labels_dir) if
+              isfile(os.path.join(labels_dir, f)) and not f.startswith('.')]
+    images = [os.path.join(images_dir, f) for f in os.listdir(images_dir) if
+              isfile(os.path.join(images_dir, f)) and not f.startswith('.')]
     train_files = zip(labels, images)
     # train on 80% of data
     num_train = int(len(train_files) * 0.8)
@@ -83,12 +87,13 @@ def main():
     num_classes = len(category_names)
 
     model = CNNModel(args.hidden_size_1, args.hidden_size_2, args.batch_size, num_classes,
-                     args.learning_rate)
+                     args.learning_rate, num_layers=2)
 
     sess = tf.Session()
     init = tf.initialize_all_variables()
     sess.run(init)
-    train(sess, model, train_files, num_epochs=args.num_epochs, patches_per_image=args.patches_per_image,
+    train(sess, model, train_files, patch_size=args.patch_size, num_epochs=args.num_epochs,
+          patches_per_image=args.patches_per_image,
           save_path=args.model_save_path)
 
     print "Saving trained model to %s ..." % args.model_save_path

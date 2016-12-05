@@ -62,13 +62,14 @@ class CNNModel:
             logits_shape = tf.shape(current_logits)
             center_logit = tf.slice(current_logits, begin=[0, logits_shape[1] / 2, logits_shape[2] / 2, 0],
                                     size=[-1, 1, 1, -1])
+            center_logit = tf.reshape(center_logit, shape=[1, 1, num_classes])
             current_error = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(center_logit, self.output))
             self.logits.append(current_logits)
             self.errors.append(current_error)
 
             # extracts RGB channels from input image. Only keeps every other pixel, since convolution scales down the
             #  output. The shape of this should have the same height and width and the logits.
-            rgb = tf.strided_slice(current_input, [0, 0, 0, 0], [0, 0, 0, 3], strides=[2, 2, 2, 1], end_mask=7)
+            rgb = tf.strided_slice(current_input, [0, 0, 0, 0], [0, 0, 0, 3], strides=[1, 2, 2, 1], end_mask=7)
             current_input = tf.concat(concat_dim=3, values=[rgb, current_logits])
             print "Current Input Shape: ", current_input.get_shape()
 
