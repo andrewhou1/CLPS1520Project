@@ -17,6 +17,8 @@ def train(sess, model, train_files, num_epochs, patch_size, patches_per_image=10
     for i in range(num_epochs):
         print 'Running epoch %d/%d...' % (i + 1, num_epochs)
         for label_f, image_f in train_files:
+            if os.path.basename(label_f) != os.path.basename(image_f):
+                print "UNEQUAL IMAGE NAMES!"
             error_per_image = 0
             start_time = time.time()
             labels = labels_to_np_array(label_f)
@@ -52,7 +54,7 @@ def main():
     parser.add_argument('--category_map', type=str, help='File that maps colors ')
     parser.add_argument('--hidden_size_1', type=int, default=25, help='First Hidden size for CNN model')
     parser.add_argument('--hidden_size_2', type=int, default=50, help='Second Hidden size for CNN model')
-    parser.add_argument('--patch_size', type=int, default=23, help='Patch size for input images')
+    parser.add_argument('--patch_size', type=int, default=67, help='Patch size for input images')
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for training CNN model')
     # TODO figure out batch size
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training CNN model')
@@ -63,6 +65,8 @@ def main():
                         help='Whether to reset random seed at start, for debugging.')
     parser.add_argument('--model_save_path', type=str, default=None,
                         help='Optional location to store saved model in.')
+    parser.add_argument('--dry_run', action='store_true', default=False,
+                        help='If true, only trains on one image, to test the training code quickly.')
 
     args = parser.parse_args()
 
@@ -82,7 +86,10 @@ def main():
               isfile(os.path.join(images_dir, f)) and not f.startswith('.')]
     train_files = zip(labels, images)
     # train on 80% of data
-    num_train = int(len(train_files) * 0.8)
+    if args.dry_run:
+        num_train = 1
+    else:
+        num_train = int(len(train_files) * 0.8)
     train_files = train_files[:num_train]
     num_classes = len(category_names)
 
