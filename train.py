@@ -14,11 +14,6 @@ def train(sess, model, dataset_iter, num_epochs, patch_size, patches_per_image=1
     for i in range(num_epochs):
         print 'Running epoch %d/%d...' % (i + 1, num_epochs)
         for image, labels in dataset_iter():
-            for row in labels:
-                for l in row:
-                    if l < 0 or l >= model.num_classes:
-                        print "INVALID label:", l
-
             start_time = time.time()
             h, w, _ = image.shape
 
