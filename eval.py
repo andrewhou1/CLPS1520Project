@@ -12,34 +12,50 @@ from preprocessing import read_object_classes, image_to_np_array, labels_to_np_a
     FROM_GAMES, DATASETS
 
 
-def test_model(sess, model, dataset_iter, color_map, output_dir):
+def test_model(sess, model, dataset_iter, use_patches=False, color_map=None, output_dir=None):
     total_accuracy = 0
     class_correct_counts = np.zeros(model.num_classes)
     class_total_counts = np.zeros(model.num_classes)
     i = 0
-    for image, labels in dataset_iter():
-        i += 1
+    for image, labels, img_id in dataset_iter():
         start_time = time.time()
         h, w, _ = image.shape
+        if use_patches:
+            patch_size = CNNModel.PATCH_SIZE
+            for y in range(patch_size, h - patch_size):
+                for x in range(patch_size, w - patch_size):
+                    patch = get_patch(image, center=(y, x), patch_size=patch_size)
+                    patch_labels = get_patch(labels, center=(y, x), patch_size=patch_size)
+                    input_patch = np.append(patch, np.zeros(shape=[patch_size, patch_size, model.num_classes],
+                                                            dtype=np.float32), axis=2)
+                    feed_dict = {model.inpt: [input_patch], model.output: [patch_labels]}
+                    logits, error = sess.run([model.logits[1], model.loss], feed_dict=feed_dict)
+                    predicted_label = np.argmax(logits[patch_size/2, patch_size/2, :])
+                    true_label = patch_labels[patch_size/2, patch_size/2]
 
-        input_image = np.append(image, np.zeros(shape=[h, w, model.num_classes], dtype=np.float32), axis=2)
-        feed_dict = {model.inpt: [input_image], model.output: [labels]}
-        logits, error = sess.run([model.logits[1], model.loss], feed_dict=feed_dict)
-        predicted_labels = np.argmax(logits[0], axis=2)
-        true_labels = labels[::4, ::4]
+                    class_total_counts[true_label] += 1
+                    if true_label == predicted_label:
+                        class_correct_counts[true_label] += 1
+        else:
+            i += 1
+            input_image = np.append(image, np.zeros(shape=[h, w, model.num_classes], dtype=np.float32), axis=2)
+            feed_dict = {model.inpt: [input_image], model.output: [labels]}
+            logits, error = sess.run([model.logits[1], model.loss], feed_dict=feed_dict)
+            predicted_labels = np.argmax(logits[0], axis=2)
+            true_labels = labels[::4, ::4]
 
-        correct_labels = np.equal(predicted_labels, true_labels)
-        accuracy = np.mean(correct_labels)
-        total_accuracy += accuracy
+            correct_labels = np.equal(predicted_labels, true_labels)
+            accuracy = np.mean(correct_labels)
+            total_accuracy += accuracy
 
-        for c in range(model.num_classes):
-            current_class_labels = np.equal(true_labels, c)
-            class_total_counts[c] += np.sum(current_class_labels)
-            class_correct_counts[c] += np.sum(np.equal(true_labels, c) * correct_labels)
+            for c in range(model.num_classes):
+                current_class_labels = np.equal(true_labels, c)
+                class_total_counts[c] += np.sum(current_class_labels)
+                class_correct_counts[c] += np.sum(np.equal(true_labels, c) * correct_labels)
 
-        print "Error: %f Accuracy: %f (time: %.1fs)" % (error, accuracy, time.time() - start_time)
+        print "Image: %s Error: %f Accuracy: %f (time: %.1fs)" % (img_id, error, accuracy, time.time() - start_time)
 
-    print "%d Images, Total Accuracy: %f" % (i, total_accuracy/i)
+    print "%d Images, Total Accuracy: %f" % (i, total_accuracy / i)
     print "Per Class accuracy:", class_correct_counts / class_total_counts
     print np.sum(class_correct_counts / class_total_counts)
 

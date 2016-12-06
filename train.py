@@ -13,14 +13,14 @@ from preprocessing import read_object_classes, DATASETS, FROM_GAMES
 def train(sess, model, dataset_iter, num_epochs, patch_size, patches_per_image=1000, save_path=None):
     for i in range(num_epochs):
         print 'Running epoch %d/%d...' % (i + 1, num_epochs)
-        for image, labels in dataset_iter():
+        for image, labels, img_id in dataset_iter():
             start_time = time.time()
             h, w, _ = image.shape
 
             input_image = np.append(image, np.zeros(shape=[h, w, model.num_classes], dtype=np.float32), axis=2)
             feed_dict = {model.inpt: [input_image], model.output: [labels]}
             loss, _ = sess.run([model.loss, model.train_step], feed_dict=feed_dict)
-            print "Average error for this image: %f (time: %.1fs)" % (loss, time.time() - start_time)
+            print "Average error for this image (%s): %f (time: %.1fs)" % (img_id, loss, time.time() - start_time)
 
         if save_path is not None:
             print "Epoch %i finished, saving trained model to %s..." % (i + 1, save_path)

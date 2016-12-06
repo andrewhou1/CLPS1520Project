@@ -195,9 +195,10 @@ def stanford_bgrounds_dataset(data_dir, train_fraction=None, num_train=None):
     for label_f, image_f in train_files:
         if os.path.basename(label_f).split('.')[0] != os.path.basename(image_f).split('.')[0]:
             print "UNEQUAL IMAGE NAMES!", label_f, image_f
+        img_id = os.path.basename(label_f).split('.')[0]
         image = image_to_np_array(image_f)
         labels = text_labels_to_np_array(label_f)
-        yield image, labels
+        yield image, labels, img_id
 
 
 # list of datasets for which we have iterators

@@ -6,6 +6,8 @@ import tensorflow as tf
 
 
 class CNNModel:
+    PATCH_SIZE = 67
+
     def __init__(self, hidden_size_1, hidden_size_2, batch_size, num_classes, learning_rate, num_layers):
         # TODO fix padding
         self.hidden_size_1 = hidden_size_1
