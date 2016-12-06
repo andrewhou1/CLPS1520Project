@@ -201,6 +201,18 @@ def stanford_bgrounds_dataset(data_dir, train_fraction=None, num_train=None):
         yield image, labels, img_id
 
 
+def gaussian(gSigma,gSize):
+
+    x1 = np.linspace(-gSize/2,(gSize/2)-1,gSize)
+    y1 = np.linspace(-gSize/2,(gSize/2)-1,gSize)
+
+    [mx, my] = np.meshgrid(x1, y1);
+
+    gWindow = np.exp(-(mx**2+my**2)/(2*gSigma**2))
+
+    return gWindow
+
+
 # list of datasets for which we have iterators
 FROM_GAMES = 'from-games'
 SIFT_FLOW = 'sift-flow'
