@@ -26,10 +26,14 @@ def test_model(sess, model, images, labels, patch_size, output_dir=None, categor
         image = image_to_np_array(image_f, float_cols=True)
         labels = labels_to_np_array(label_f)
         h, w, _ = image.shape
+        image = image[:h//2, :w//2, :]
+        h, w, _ = image.shape
+        labels = labels[:h, :w]
         predicted_labels = np.zeros([h, w], dtype=np.uint8)
         pixels_correct = 0
         error_for_image = 0
         i = 0
+
         for y in range(patch_size, h - patch_size):
             # # for debug, only do first 10K
             # if i > 1e4:
@@ -39,12 +43,12 @@ def test_model(sess, model, images, labels, patch_size, output_dir=None, categor
                 i += 1
                 input_image = get_patch(image, (y, x), patch_size)
                 input_image = np.append(input_image,
-                                        np.zeros(shape=[patch_size, patch_size, 1], dtype=np.float32),
+                                        np.zeros(shape=[patch_size, patch_size, model.num_classes], dtype=np.float32),
                                         axis=2)
                 input_label = labels[y, x]
-                feed_dict = {model.inpt: [input_image], model.output: [[input_label]]}
+                feed_dict = {model.inpt: [input_image], model.output: input_label}
 
-                error, logits = sess.run([model.error, model.logits], feed_dict=feed_dict)
+                error, logits = sess.run([model.errors[1], model.logits[1]], feed_dict=feed_dict)
                 error_for_image += error
                 output_label = np.argmax(logits)
                 if output_label == input_label:
@@ -54,8 +58,8 @@ def test_model(sess, model, images, labels, patch_size, output_dir=None, categor
                 if i % 1000 == 0:
                     print "%d/%d pixels done..." % (i, (h - 2 * patch_size) * (w - 2 * patch_size))
 
-        print "Tested on image %s: Accuracy is %.2f%%, error per pixel is %f." % (
-            image_f, (100.0 * pixels_correct) / i, error_for_image / i)
+        # print "Tested on image %s: Accuracy is %.2f%%, error per pixel is %f." % (
+        #     image_f, (100.0 * pixels_correct) / i, error_for_image / i)
         if output_dir is not None:
             if category_colors is None:
                 raise ValueError("Color index not provided, can't output images.")
@@ -74,6 +78,7 @@ def main():
     parser.add_argument('--labels', type=str, nargs='+', help='Filename of test labels')
     parser.add_argument('--output_dir', type=str, default=None,
                         help='Directory to store model output. By default no output is generated.')
+    parser.add_argument('--patch_size', type=int, default=67, help='Size of input patches')
     args = parser.parse_args()
 
     # load class labels
@@ -85,7 +90,7 @@ def main():
     sess = tf.Session()
     restore_model(sess, args.model)
 
-    test_model(sess, model, args.images, args.labels, patch_size=23, output_dir=args.output_dir,
+    test_model(sess, model, args.images, args.labels, patch_size=args.patch_size, output_dir=args.output_dir,
                category_colors=category_colors)
 
 

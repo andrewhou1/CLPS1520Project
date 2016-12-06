@@ -16,14 +16,12 @@ class CNNModel:
         self.num_layers = num_layers
 
         # Set up placeholders for input and output
-        print "params:", batch_size, hidden_size_1, hidden_size_2, self.num_classes
-        self.inpt = tf.placeholder(dtype=tf.float32, shape=[batch_size, None, None, 3+self.num_classes])
-        print "**** input", self.inpt.get_shape()
-        self.output = tf.placeholder(tf.int32, [1, 1])
+        self.inpt = tf.placeholder(dtype=tf.float32, shape=[batch_size, None, None, 3 + self.num_classes])
+        self.output = tf.placeholder(tf.int32, [batch_size, None, None])
 
         # Set up variable weights for model. These are shared across recurrent layers
 
-        W_conv1 = tf.Variable(tf.truncated_normal([8, 8, 3+self.num_classes, self.hidden_size_1], stddev=0.1))
+        self.W_conv1 = tf.Variable(tf.truncated_normal([8, 8, 3 + self.num_classes, self.hidden_size_1], stddev=0.1))
         b_conv1 = tf.Variable(tf.constant(0.1, shape=[self.hidden_size_1]))
 
         W_conv2 = tf.Variable(tf.truncated_normal([8, 8, self.hidden_size_1, self.hidden_size_2], stddev=0.1))
@@ -35,45 +33,37 @@ class CNNModel:
         self.logits = []
         self.errors = []
         current_input = self.inpt
+        current_output = self.output
         for i in range(self.num_layers):
-            h_conv1 = tf.nn.conv2d(current_input, W_conv1, strides=[1, 1, 1, 1], padding='SAME') + b_conv1
+            # scale output down by a stride of 2, to match convolution output
+            current_output = tf.strided_slice(current_output, [0, 0, 0], [0, 0, 0], strides=[1, 2, 2], end_mask=7)
+
+            # convolution steps
+            h_conv1 = tf.nn.conv2d(current_input, self.W_conv1, strides=[1, 1, 1, 1], padding='SAME') + b_conv1
             h_pool1 = tf.nn.max_pool(h_conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-
             tanh = tf.tanh(h_pool1)
-            print "**** tanh", tanh.get_shape()
-
             h_conv2 = tf.nn.conv2d(tanh, W_conv2, strides=[1, 1, 1, 1], padding='SAME') + b_conv2
-            print "&&&& h_conv2", h_conv2.get_shape()
-
             h_conv3 = tf.nn.conv2d(h_conv2, W_conv3, strides=[1, 1, 1, 1], padding='SAME') + b_conv3
-            print "&&&& h_conv3", h_conv3.get_shape()
-
-            # # figure out the frickin logits reshaping
-            # # h_conv3 shape is [batch_size x width x height x num_categories]
-            # conv3_shape = tf.shape(h_conv3)
-            # conv3_height = conv3_shape[1]
-            # conv3_width = conv3_shape[2]
-            #
-            # # TODO don't hardcode this slice
-            # center_pixel = tf.slice(h_conv3, begin=[0, conv3_height / 2, conv3_width / 2, 0],
-            #                         size=[1, 1, 1, self.num_classes])
-
             current_logits = h_conv3
-            logits_shape = tf.shape(current_logits)
-            center_logit = tf.slice(current_logits, begin=[0, logits_shape[1] / 2, logits_shape[2] / 2, 0],
-                                    size=[-1, 1, 1, -1])
-            center_logit = tf.reshape(center_logit, shape=[1, 1, num_classes])
-            current_error = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(center_logit, self.output))
+
+            # tensorflow 11 doesn't have multidimensional softmax, we need to get predictions manually :-(
+            # (predictions are what's passed to the next iteration/layer of the CNN
+            exp_logits = tf.exp(current_logits)
+            predictions = exp_logits / tf.reduce_sum(exp_logits, reduction_indices=[3], keep_dims=True)
+
+            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(current_logits, current_output)
+            error_for_all_pixel = tf.reduce_mean(cross_entropy, reduction_indices=[0])
+            error_for_image = tf.reduce_mean(error_for_all_pixel)
             self.logits.append(current_logits)
-            self.errors.append(current_error)
+            self.errors.append(error_for_image)
 
             # extracts RGB channels from input image. Only keeps every other pixel, since convolution scales down the
             #  output. The shape of this should have the same height and width and the logits.
             rgb = tf.strided_slice(current_input, [0, 0, 0, 0], [0, 0, 0, 3], strides=[1, 2, 2, 1], end_mask=7)
-            current_input = tf.concat(concat_dim=3, values=[rgb, current_logits])
-            print "Current Input Shape: ", current_input.get_shape()
+            current_input = tf.concat(concat_dim=3, values=[rgb, predictions])
 
-        self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(tf.add_n(self.errors))
+        self.loss = tf.add_n(self.errors)
+        self.train_step = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
 
 def save_model(sess, path, saver=None):

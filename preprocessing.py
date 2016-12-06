@@ -6,6 +6,9 @@ import sys
 
 import numpy as np
 from PIL import Image
+import os
+
+from os.path import isfile
 
 
 def read_object_classes(classes_map_filename):
@@ -19,6 +22,7 @@ def read_object_classes(classes_map_filename):
         3. an array of ID -> category name
         2. a dictionary of category name -> ID
     """
+    # TODO handle different potential formats better
     format_description = "Each line should contain 5 elements: (float R, float G, float B, int ID, str Name)."
     ids = set()
     ids_to_cols = {}
@@ -30,9 +34,17 @@ def read_object_classes(classes_map_filename):
                 vals = line.split()
                 if len(vals) == 0:
                     continue
-                rgb = tuple([int(255 * float(s)) for s in vals[:3]])
-                category_num = int(vals[3])
-                category_name = vals[4]
+                elif len(vals) == 2:
+                    has_cols = False
+                    category_num = int(vals[0])
+                    category_name = vals[1]
+                elif len(vals) == 5:
+                    has_cols = True
+                    rgb = tuple([int(255 * float(s)) for s in vals[:3]])
+                    category_num = int(vals[3])
+                    category_name = vals[4]
+                else:
+                    raise ValueError("Category map must have either 2 or 5 columns")
 
                 # check for duplicate categories
                 if category_num in ids:
@@ -45,7 +57,8 @@ def read_object_classes(classes_map_filename):
                 ids.add(category_num)
                 ids_to_names[category_num] = category_name
                 names_to_ids[category_name] = category_num
-                ids_to_cols[category_num] = rgb
+                if has_cols:
+                    ids_to_cols[category_num] = rgb
 
             except (ValueError, IndexError) as e:
                 sys.stderr.write("%s %s\n" % (format_description, e))
@@ -56,7 +69,8 @@ def read_object_classes(classes_map_filename):
     category_names = [None] * (max_id + 1)
     for cat_id in ids:
         category_names[cat_id] = ids_to_names[cat_id]
-        category_colors[cat_id] = ids_to_cols[cat_id]
+        if has_cols:
+            category_colors[cat_id] = ids_to_cols[cat_id]
 
     return category_colors, category_names, names_to_ids
 
@@ -92,6 +106,13 @@ def labels_to_np_array(lab_filename):
     return data
 
 
+def text_labels_to_np_array(lab_filename):
+    label_file = open(lab_filename, 'r')
+    # TODO right now were just ignoring negative ("unknown") labels. Need a nicer way to do this in long term
+    labels = [map(lambda n: max(0, int(n)), l.split()) for l in label_file.readlines()]
+    return np.array(labels, dtype=np.int8)
+
+
 def save_labels_array(labels, output_filename, colors):
     """
     Saves a numpy array of labels to an paletted image.
@@ -120,9 +141,77 @@ def get_patch(array, center, patch_size):
     """
     rounded_width = patch_size // 2
     return array[center[0] - rounded_width: center[0] + rounded_width + 1,
-                 center[1] - rounded_width: center[1] + rounded_width + 1]
+           center[1] - rounded_width: center[1] + rounded_width + 1]
 
-if __name__ == '__main__':
+
+def from_games_dataset(data_dir, train_fraction=None, num_train=None):
+    labels_dir = os.path.join(data_dir, 'labels')
+    images_dir = os.path.join(data_dir, 'images')
+
+    # TODO get only image files
+    labels = [os.path.join(labels_dir, f) for f in os.listdir(labels_dir) if
+              isfile(os.path.join(labels_dir, f)) and not f.startswith('.')]
+    labels = sorted(labels)
+    images = [os.path.join(images_dir, f) for f in os.listdir(images_dir) if
+              isfile(os.path.join(images_dir, f)) and not f.startswith('.')]
+    images = sorted(images)
+    train_files = zip(labels, images)
+
+    # if specified, only choose subset of training data
+    if train_fraction is not None and num_train is None:
+        num_train = int(len(train_files) * train_fraction)
+    if num_train is not None:
+        train_files = train_files[:num_train]
+
+    for label_f, image_f in train_files:
+        print "Current image:", os.path.basename(image_f)
+        if os.path.basename(label_f) != os.path.basename(image_f):
+            print "UNEQUAL IMAGE NAMES!"
+        image = image_to_np_array(image_f)
+        labels = labels_to_np_array(label_f)
+        yield image, labels
+
+
+# TODO negative label nums could mess up paletted output
+def stanford_bgrounds_dataset(data_dir, train_fraction=None, num_train=None):
+    labels_dir = os.path.join(data_dir, 'labels')
+    images_dir = os.path.join(data_dir, 'images')
+
+    # TODO get only image files
+    labels = [os.path.join(labels_dir, f) for f in os.listdir(labels_dir) if
+              isfile(os.path.join(labels_dir, f)) and not f.startswith('.') and f.endswith('.regions.txt')]
+    labels = sorted(labels)
+    images = [os.path.join(images_dir, f) for f in os.listdir(images_dir) if
+              isfile(os.path.join(images_dir, f)) and not f.startswith('.')]
+    images = sorted(images)
+    train_files = zip(labels, images)
+
+    # if specified, only choose subset of training data
+    if train_fraction is not None and num_train is None:
+        num_train = int(len(train_files) * train_fraction)
+    if num_train is not None:
+        train_files = train_files[:num_train]
+
+    for label_f, image_f in train_files:
+        if os.path.basename(label_f).split('.')[0] != os.path.basename(image_f).split('.')[0]:
+            print "UNEQUAL IMAGE NAMES!", label_f, image_f
+        image = image_to_np_array(image_f)
+        labels = text_labels_to_np_array(label_f)
+        yield image, labels
+
+
+# list of datasets for which we have iterators
+FROM_GAMES = 'from-games'
+SIFT_FLOW = 'sift-flow'
+STANFORD_BGROUND = 'stanford-bground'
+DATASETS = {FROM_GAMES: from_games_dataset, SIFT_FLOW: None, STANFORD_BGROUND: stanford_bgrounds_dataset}
+
+
+def main():
     colors_map, infile, outfile = sys.argv[1:]
     labels = labels_to_np_array(infile)
-    save_labels_array()
+    save_labels_array(labels, output_filename=outfile, colors=colors_map)
+
+
+if __name__ == '__main__':
+    main()

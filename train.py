@@ -1,45 +1,31 @@
 #!/usr/bin/env python2.7
 import argparse
-import os
 import random
-from os.path import isfile
+import time
 
 import numpy as np
 import tensorflow as tf
-import time
 
 from model import CNNModel, save_model
-from preprocessing import read_object_classes, labels_to_np_array, image_to_np_array, get_patch
-from randomPixels import gencoordinates
+from preprocessing import read_object_classes, DATASETS, FROM_GAMES
 
 
-def train(sess, model, train_files, num_epochs, patch_size, patches_per_image=1000, save_path=None):
+def train(sess, model, dataset_iter, num_epochs, patch_size, patches_per_image=1000, save_path=None):
     for i in range(num_epochs):
         print 'Running epoch %d/%d...' % (i + 1, num_epochs)
-        for label_f, image_f in train_files:
-            if os.path.basename(label_f) != os.path.basename(image_f):
-                print "UNEQUAL IMAGE NAMES!"
-            error_per_image = 0
+        for image, labels in dataset_iter():
+            for row in labels:
+                for l in row:
+                    if l < 0 or l >= model.num_classes:
+                        print "INVALID label:", l
+
             start_time = time.time()
-            labels = labels_to_np_array(label_f)
-            image = image_to_np_array(image_f)
             h, w, _ = image.shape
-            coords_iter = gencoordinates(patch_size, h - patch_size - 1, patch_size, w - patch_size - 1)
 
-            for _ in range(patches_per_image):
-                patch_center = next(coords_iter)
-                input_image = get_patch(image, patch_center, patch_size)
-                input_image = np.append(input_image,
-                                        np.zeros(shape=[patch_size, patch_size, model.num_classes],
-                                                 dtype=np.float32),
-                                        axis=2)
-                input_label = labels[patch_center[0], patch_center[1]]
-                feed_dict = {model.inpt: [input_image], model.output: [[input_label]]}
-                error, _ = sess.run([model.errors[1], model.train_step], feed_dict=feed_dict)
-                error_per_image += error
-
-            print "Average error for this image (%s): %f (time: %ds)" % (
-                os.path.basename(image_f), error_per_image / patches_per_image, time.time() - start_time)
+            input_image = np.append(image, np.zeros(shape=[h, w, model.num_classes], dtype=np.float32), axis=2)
+            feed_dict = {model.inpt: [input_image], model.output: [labels]}
+            loss, _ = sess.run([model.loss, model.train_step], feed_dict=feed_dict)
+            print "Average error for this image: %f (time: %.1fs)" % (loss, time.time() - start_time)
 
         if save_path is not None:
             print "Epoch %i finished, saving trained model to %s..." % (i + 1, save_path)
@@ -50,6 +36,8 @@ def main():
     # parse command line arguments
     parser = argparse.ArgumentParser(description='An rCNN scene labeling model.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--dataset', type=str, default=FROM_GAMES, choices=DATASETS.keys(),
+                        help='Type of dataset to use. This determines the expected format of the data directory')
     parser.add_argument('--data_dir', type=str, help='Directory for image and label data')
     parser.add_argument('--category_map', type=str, help='File that maps colors ')
     parser.add_argument('--hidden_size_1', type=int, default=25, help='First Hidden size for CNN model')
@@ -75,23 +63,16 @@ def main():
 
     # load class labels
     category_colors, category_names, names_to_ids = read_object_classes(args.category_map)
-
-    labels_dir = os.path.join(args.data_dir, 'labels')
-    images_dir = os.path.join(args.data_dir, 'images')
-
-    # TODO get only image files
-    labels = [os.path.join(labels_dir, f) for f in os.listdir(labels_dir) if
-              isfile(os.path.join(labels_dir, f)) and not f.startswith('.')]
-    images = [os.path.join(images_dir, f) for f in os.listdir(images_dir) if
-              isfile(os.path.join(images_dir, f)) and not f.startswith('.')]
-    train_files = zip(labels, images)
-    # train on 80% of data
-    if args.dry_run:
-        num_train = 1
-    else:
-        num_train = int(len(train_files) * 0.8)
-    train_files = train_files[:num_train]
     num_classes = len(category_names)
+
+    # create function that when called, provides iterator to an epoch of the data
+    dataset_func = DATASETS[args.dataset]
+    if args.dry_run:
+        def dataset_epoch_iter():
+            return dataset_func(args.data_dir, num_train=1)
+    else:
+        def dataset_epoch_iter():
+            return dataset_func(args.data_dir, train_fraction=0.8)
 
     model = CNNModel(args.hidden_size_1, args.hidden_size_2, args.batch_size, num_classes,
                      args.learning_rate, num_layers=2)
@@ -99,7 +80,7 @@ def main():
     sess = tf.Session()
     init = tf.initialize_all_variables()
     sess.run(init)
-    train(sess, model, train_files, patch_size=args.patch_size, num_epochs=args.num_epochs,
+    train(sess, model, dataset_epoch_iter, patch_size=args.patch_size, num_epochs=args.num_epochs,
           patches_per_image=args.patches_per_image,
           save_path=args.model_save_path)
 
