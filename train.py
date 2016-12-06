@@ -6,7 +6,7 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from model import CNNModel, save_model
+from model import CNNModel, save_model, restore_model
 from preprocessing import read_object_classes, DATASETS, FROM_GAMES
 
 
@@ -48,6 +48,8 @@ def main():
                         help='Whether to reset random seed at start, for debugging.')
     parser.add_argument('--model_save_path', type=str, default=None,
                         help='Optional location to store saved model in.')
+    parser.add_argument('--model_load_path', type=str, default=None,
+                        help='Optional location to load saved model from.')
     parser.add_argument('--dry_run', action='store_true', default=False,
                         help='If true, only trains on one image, to test the training code quickly.')
 
@@ -75,6 +77,8 @@ def main():
     sess = tf.Session()
     init = tf.initialize_all_variables()
     sess.run(init)
+    if args.model_load_path is not None:
+        restore_model(sess, args.model_load_path)
     train(sess, model, dataset_epoch_iter, patch_size=args.patch_size, num_epochs=args.num_epochs,
           patches_per_image=args.patches_per_image,
           save_path=args.model_save_path)
