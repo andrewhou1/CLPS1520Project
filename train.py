@@ -52,6 +52,9 @@ def main():
                         help='Optional location to load saved model from.')
     parser.add_argument('--dry_run', action='store_true', default=False,
                         help='If true, only trains on one image, to test the training code quickly.')
+    parser.add_argument('--train_fraction', type=float, default=0.8,
+                        help='Fraction of data to train on. If positive, trains on first X images, otherwise trains on '
+                             'last X images.')
 
     args = parser.parse_args()
 
@@ -69,7 +72,7 @@ def main():
             return dataset_func(args.data_dir, num_train=1)
     else:
         def dataset_epoch_iter():
-            return dataset_func(args.data_dir, train_fraction=0.8)
+            return dataset_func(args.data_dir, train_fraction=args.train_fraction)
 
     model = CNNModel(args.hidden_size_1, args.hidden_size_2, args.batch_size, num_classes,
                      args.learning_rate, num_layers=2)

@@ -201,16 +201,21 @@ def stanford_bgrounds_dataset(data_dir, train_fraction=None, num_train=None):
         yield image, labels, img_id
 
 
-def gaussian(gSigma,gSize):
+def gaussian(g_sigma, g_size):
+    """
 
-    x1 = np.linspace(-gSize/2,(gSize/2)-1,gSize)
-    y1 = np.linspace(-gSize/2,(gSize/2)-1,gSize)
+    :param gSigma: Filter size
+    :param g_Size: Patch size
+    :return: A gaussian filter of the given size and variance
+    """
+    x1 = np.linspace(-g_size / 2, (g_size / 2) - 1, g_size)
+    y1 = np.linspace(-g_size / 2, (g_size / 2) - 1, g_size)
 
-    [mx, my] = np.meshgrid(x1, y1);
+    mx, my = np.meshgrid(x1, y1)
 
-    gWindow = np.exp(-(mx**2+my**2)/(2*gSigma**2))
+    g_window = np.exp(-(mx ** 2 + my ** 2) / (2 * g_sigma ** 2))
 
-    return gWindow
+    return g_window
 
 
 # list of datasets for which we have iterators
