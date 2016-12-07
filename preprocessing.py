@@ -226,9 +226,18 @@ DATASETS = {FROM_GAMES: from_games_dataset, SIFT_FLOW: None, STANFORD_BGROUND: s
 
 
 def main():
-    colors_map, infile, outfile = sys.argv[1:]
-    labels = labels_to_np_array(infile)
-    save_labels_array(labels, output_filename=outfile, colors=colors_map)
+    infile = sys.argv[1]
+    image = image_to_np_array(infile, float_cols=False)
+    for gaussian_sigma in [15, 30]:
+        mask = gaussian(g_sigma=gaussian_sigma, g_size=image.shape[0])
+        mask = np.expand_dims(mask, axis=2)
+        mask = np.repeat(mask, repeats=3, axis=2)
+
+
+        masked_image = image * mask
+        print masked_image
+        output_image = Image.fromarray(masked_image.astype(dtype=np.uint8), mode="RGB")
+        output_image.save(infile + str(gaussian_sigma) + '.png')
 
 
 if __name__ == '__main__':

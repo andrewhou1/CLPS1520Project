@@ -20,6 +20,11 @@ def run_model_iter(sess, model, image, labels, is_training=False, use_patches=Fa
         ops_to_run = [model.logits[0], model.logits[1], model.loss]
     i = 0
 
+    error_classes = np.sum(np.less(labels, 0) + np.greater_equal(labels, model.num_classes))
+    if error_classes > 0:
+        print "ERROR - Incorrect labels in image:", labels
+        return
+
     h, w = labels.shape
 
     if use_patches:
@@ -64,6 +69,9 @@ def train(sess, model, dataset_iter, num_epochs, use_patches=False, patches_per_
                 losses = [loss for loss, _ in iter_model()]
 
             avg_loss = sum(losses) / len(losses)
+            if avg_loss != avg_loss:
+                print "Loss values were NaN! Stopping training without saving."
+                return
             elapsed_time = time.time() - start_time
             print "Trained on image #%d (%s): Loss: %f Elapsed time: %.1f" % (n, img_id, avg_loss, elapsed_time)
 
