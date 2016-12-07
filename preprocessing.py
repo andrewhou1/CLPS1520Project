@@ -190,7 +190,7 @@ def stanford_bgrounds_dataset(data_dir, train_fraction=None, num_train=None):
     if train_fraction is not None and num_train is None:
         num_train = int(len(train_files) * train_fraction)
     if num_train is not None:
-        train_files = train_files[:num_train]
+        train_files = train_files[num_train:]
 
     for label_f, image_f in train_files:
         if os.path.basename(label_f).split('.')[0] != os.path.basename(image_f).split('.')[0]:
