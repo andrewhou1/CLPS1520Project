@@ -45,8 +45,9 @@ def test_model(sess, model, dataset_iter, layer, use_patches=False, patches_per_
         else:
             for logits1, logits2, _ in iter_model():
                 logits = logits1 if layer == 1 else logits2
+                stride = 2 if layer == 2 else 4
                 predicted_labels = np.argmax(logits[0], axis=2)
-                true_labels = labels[::4, ::4]
+                true_labels = labels[::stride, ::stride]
 
                 correct_labels = np.equal(predicted_labels, true_labels)
                 accuracy = np.mean(correct_labels)
