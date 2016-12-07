@@ -26,6 +26,8 @@ def run_model_iter(sess, model, image, labels, is_training=False, use_patches=Fa
         patch_size = model.PATCH_SIZE
         if gaussian_sigma is not None:
             mask = gaussian(g_sigma=gaussian_sigma, g_size=patch_size)
+            mask = np.expand_dims(mask, axis=2)
+            mask = np.repeat(mask, repeats=3, axis=2)
         else:
             mask = 1
         for _ in range(patches_per_image):
