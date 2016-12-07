@@ -1,41 +1,38 @@
 #!/usr/bin/env python2.7
 import argparse
+import os
 import time
 
 import numpy as np
 import tensorflow as tf
-from numpy.random import random
 
 from model import CNNModel
 from model import restore_model
-from preprocessing import read_object_classes, get_patch, FROM_GAMES, DATASETS
+from preprocessing import read_object_classes, FROM_GAMES, DATASETS, save_labels_array
+from train import run_model_iter
 
 
-def test_model(sess, model, dataset_iter, use_patches=False, patches_per_image=1000, gaussian_size=None, color_map=None,
-               output_dir=None):
+def test_model(sess, model, dataset_iter, use_patches=False, patches_per_image=1000, gaussian_sigma=None,
+               color_map=None, output_dir=None):
     total_accuracy = 0
     class_correct_counts = np.zeros(model.num_classes)
     class_total_counts = np.zeros(model.num_classes)
     i = 0
+
+    def iter_model():
+        return run_model_iter(sess, model, image, labels, is_training=False, use_patches=use_patches,
+                              patches_per_image=patches_per_image, gaussian_sigma=gaussian_sigma)
+
     for image, labels, img_id in dataset_iter():
+        i += 1
         start_time = time.time()
-        h, w, _ = image.shape
-
+        accuracy = 0.0
         if use_patches:
-            # TODO modify patches
-
-            accuracy = 0
-            patch_size = CNNModel.PATCH_SIZE
-            for _ in range(patches_per_image):
-                y = random() * (h - 2 * patch_size) + patch_size
-                x = random() * (w - 2 * patch_size) + patch_size
-                patch = get_patch(image, center=(y, x), patch_size=patch_size)
-                patch_labels = get_patch(labels, center=(y, x), patch_size=patch_size)
-                input_patch = np.append(patch, np.zeros(shape=[patch_size, patch_size, model.num_classes],
-                                                        dtype=np.float32), axis=2)
-                feed_dict = {model.inpt: [input_patch], model.output: [patch_labels]}
-                logits, error = sess.run([model.logits[1], model.loss], feed_dict=feed_dict)
-                predicted_label = np.argmax(logits[0, patch_size / 8, patch_size / 8, :])
+            patch_size = model.PATCH_SIZE
+            for ops, patch_labels in iter_model():
+                _, logits, _ = ops
+                _, output_h, output_w, _ = logits.shape
+                predicted_label = np.argmax(logits[0, output_h / 2, output_w / 2, :])
                 true_label = patch_labels[patch_size / 2, patch_size / 2]
 
                 class_total_counts[true_label] += 1
@@ -44,29 +41,30 @@ def test_model(sess, model, dataset_iter, use_patches=False, patches_per_image=1
                     accuracy += 1
             print "Image #%d: %s Accuracy: %f (time: %.1fs)" % (
                 i, img_id, accuracy / patches_per_image, time.time() - start_time)
-            # total_accuracy += accuracy / num_patches
         else:
-            i += 1
-            input_image = np.append(image, np.zeros(shape=[h, w, model.num_classes], dtype=np.float32), axis=2)
-            feed_dict = {model.inpt: [input_image], model.output: [labels]}
-            logits, error = sess.run([model.logits[1], model.loss], feed_dict=feed_dict)
-            predicted_labels = np.argmax(logits[0], axis=2)
-            true_labels = labels[::4, ::4]
+            for _, logits, _ in iter_model():
+                predicted_labels = np.argmax(logits[0], axis=2)
+                true_labels = labels[::4, ::4]
 
-            correct_labels = np.equal(predicted_labels, true_labels)
-            accuracy = np.mean(correct_labels)
-            total_accuracy += accuracy
+                correct_labels = np.equal(predicted_labels, true_labels)
+                accuracy = np.mean(correct_labels)
+                total_accuracy += accuracy
 
-            for c in range(model.num_classes):
-                current_class_labels = np.equal(true_labels, c)
-                class_total_counts[c] += np.sum(current_class_labels)
-                class_correct_counts[c] += np.sum(np.equal(true_labels, c) * correct_labels)
+                for c in range(model.num_classes):
+                    current_class_labels = np.equal(true_labels, c)
+                    class_total_counts[c] += np.sum(current_class_labels)
+                    class_correct_counts[c] += np.sum(np.equal(true_labels, c) * correct_labels)
 
-            print "Image #%d: %s Error: %f Accuracy: %f (time: %.1fs)" % (
-            i, img_id, error, accuracy, time.time() - start_time)
+                print "Image #%d: %s: Accuracy: %f (time: %.1fs)" % (
+                    i, img_id, accuracy, time.time() - start_time)
 
         if output_dir is not None and color_map is not None:
-            pass
+            output_filename = os.path.join(output_dir, img_id + '_test.png')
+            predicted_labels = None
+            for _, logits, _ in iter_model():
+                predicted_labels = np.argmax(logits[0], axis=2)
+            predicted_labels = np.kron(predicted_labels, np.ones(shape=[4, 4]))
+            save_labels_array(predicted_labels.astype(np.uint8), output_filename, colors=color_map)
 
     print "%d Images, Total Accuracy: %f" % (i, total_accuracy / i)
     print "Per Class correct counts:", class_correct_counts
@@ -88,6 +86,10 @@ def main():
     parser.add_argument('--patch_size', type=int, default=67, help='Size of input patches')
     parser.add_argument('--use_patches', action='store_true', default=False,
                         help='Whether to evaluate model on individual patches')
+    parser.add_argument('--patches_per_image', type=int, default=2000,
+                        help='Number of patches to sample from each test image. Not used by default.')
+    parser.add_argument('--gaussian_sigma', type=int, choices=[15, 30], default=None,
+                        help='Size of gaussian mask to apply to patches. Not used by default.')
     parser.add_argument('--test_fraction', type=float, default=-0.2,
                         help='Fraction of data to test on. If positive, tests on first X images, otherwise tests on '
                              'last X images.')
@@ -107,7 +109,8 @@ def main():
     sess = tf.Session()
     restore_model(sess, args.model)
 
-    test_model(sess, model, dataset_func, use_patches=args.use_patches)
+    test_model(sess, model, dataset_func, use_patches=args.use_patches, patches_per_image=args.patches_per_image,
+               gaussian_sigma=args.gaussian_sigma, output_dir=args.output_dir, color_map=category_colors)
 
 
 if __name__ == '__main__':

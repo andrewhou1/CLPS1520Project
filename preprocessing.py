@@ -139,9 +139,9 @@ def get_patch(array, center, patch_size):
     :param patch_size: A single number representing the width and height of the patch.
     :return: A square patch of the image with the given center and size.
     """
-    rounded_width = patch_size // 2
+    rounded_width = int(patch_size / 2)
     return array[center[0] - rounded_width: center[0] + rounded_width + 1,
-           center[1] - rounded_width: center[1] + rounded_width + 1]
+                 center[1] - rounded_width: center[1] + rounded_width + 1]
 
 
 def from_games_dataset(data_dir, train_fraction=None, num_train=None):
@@ -203,7 +203,7 @@ def stanford_bgrounds_dataset(data_dir, train_fraction=None, num_train=None):
 
 def gaussian(g_sigma, g_size):
     """
-
+    Creates a 2D gaussian mask with values form 0 to 1, of the given size and variance.
     :param gSigma: Filter size
     :param g_Size: Patch size
     :return: A gaussian filter of the given size and variance

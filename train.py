@@ -7,20 +7,63 @@ import numpy as np
 import tensorflow as tf
 
 from model import CNNModel, save_model, restore_model
-from preprocessing import read_object_classes, DATASETS, FROM_GAMES
+from preprocessing import read_object_classes, DATASETS, FROM_GAMES, get_patch, gaussian
 
 
-def train(sess, model, dataset_iter, num_epochs, patch_size, patches_per_image=1000, save_path=None):
+def run_model_iter(sess, model, image, labels, is_training=False, use_patches=False, patches_per_image=1000,
+                   gaussian_sigma=None):
+    if is_training:
+        # For training, only run loss and train ops
+        ops_to_run = [model.loss, model.train_step]
+    else:
+        # For testing, get outputs of both layers as well as loss
+        ops_to_run = [model.logits[0], model.logits[1], model.loss]
+    i = 0
+
+    h, w = labels.shape
+
+    if use_patches:
+        patch_size = model.PATCH_SIZE
+        if gaussian_sigma is not None:
+            mask = gaussian(g_sigma=gaussian_sigma, g_size=patch_size)
+        else:
+            mask = 1
+        for _ in range(patches_per_image):
+            y = random.random() * (h - 2 * patch_size) + patch_size
+            x = random.random() * (w - 2 * patch_size) + patch_size
+            patch = get_patch(image, center=(y, x), patch_size=patch_size) * mask
+            patch_labels = get_patch(labels, center=(y, x), patch_size=patch_size)
+            input_patch = np.append(patch, np.zeros(shape=[patch_size, patch_size, model.num_classes],
+                                                    dtype=np.float32), axis=2)
+            feed_dict = {model.inpt: [input_patch], model.output: [patch_labels]}
+            ops_results = sess.run(ops_to_run, feed_dict=feed_dict)
+            yield ops_results, patch_labels
+    else:
+        input_image = np.append(image, np.zeros(shape=[h, w, model.num_classes], dtype=np.float32), axis=2)
+        feed_dict = {model.inpt: [input_image], model.output: [labels]}
+        yield sess.run(ops_to_run, feed_dict=feed_dict)
+
+
+def train(sess, model, dataset_iter, num_epochs, use_patches=False, patches_per_image=1000, gaussian_sigma=None,
+          save_path=None):
+    def iter_model():
+        return run_model_iter(sess, model, image, labels, is_training=True, use_patches=use_patches,
+                              patches_per_image=patches_per_image, gaussian_sigma=gaussian_sigma)
+
     for i in range(num_epochs):
         print 'Running epoch %d/%d...' % (i + 1, num_epochs)
+        n = 0
         for image, labels, img_id in dataset_iter():
             start_time = time.time()
-            h, w, _ = image.shape
+            n += 1
+            if use_patches:
+                losses = [ops[0] for ops, _ in iter_model()]
+            else:
+                losses = [loss for loss, _ in iter_model()]
 
-            input_image = np.append(image, np.zeros(shape=[h, w, model.num_classes], dtype=np.float32), axis=2)
-            feed_dict = {model.inpt: [input_image], model.output: [labels]}
-            loss, _ = sess.run([model.loss, model.train_step], feed_dict=feed_dict)
-            print "Average error for this image (%s): %f (time: %.1fs)" % (img_id, loss, time.time() - start_time)
+            avg_loss = sum(losses) / len(losses)
+            elapsed_time = time.time() - start_time
+            print "Trained on image #%d (%s): Loss: %f Elapsed time: %.1f" % (n, img_id, avg_loss, elapsed_time)
 
         if save_path is not None:
             print "Epoch %i finished, saving trained model to %s..." % (i + 1, save_path)
@@ -42,8 +85,12 @@ def main():
     # TODO figure out batch size
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size for training CNN model')
     parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs for training CNN model')
+    parser.add_argument('--use_patches', action='store_true', default=False,
+                        help='Whether to train model on individual patches')
     parser.add_argument('--patches_per_image', type=int, default=1000,
                         help='Number of patches to sample for each image during training of CNN model')
+    parser.add_argument('--gaussian_sigma', type=int, choices=[15, 30], default=None,
+                        help='Size of gaussian mask to apply to patches. Not used by default.')
     parser.add_argument('--fix_random_seed', action='store_true', default=False,
                         help='Whether to reset random seed at start, for debugging.')
     parser.add_argument('--model_save_path', type=str, default=None,
@@ -82,9 +129,8 @@ def main():
     sess.run(init)
     if args.model_load_path is not None:
         restore_model(sess, args.model_load_path)
-    train(sess, model, dataset_epoch_iter, patch_size=args.patch_size, num_epochs=args.num_epochs,
-          patches_per_image=args.patches_per_image,
-          save_path=args.model_save_path)
+    train(sess, model, dataset_epoch_iter, num_epochs=args.num_epochs, use_patches=args.use_patches,
+          patches_per_image=args.patches_per_image, save_path=args.model_save_path, gaussian_sigma=args.gaussian_sigma)
 
     print "Saving trained model to %s ..." % args.model_save_path
     save_model(sess, args.model_save_path)
