@@ -12,7 +12,7 @@ from preprocessing import read_object_classes, FROM_GAMES, DATASETS, save_labels
 from train import run_model_iter
 
 
-def test_model(sess, model, dataset_iter, use_patches=False, patches_per_image=1000, gaussian_sigma=None,
+def test_model(sess, model, dataset_iter, layer, use_patches=False, patches_per_image=1000, gaussian_sigma=None,
                color_map=None, output_dir=None):
     total_accuracy = 0
     class_correct_counts = np.zeros(model.num_classes)
@@ -30,7 +30,8 @@ def test_model(sess, model, dataset_iter, use_patches=False, patches_per_image=1
         if use_patches:
             patch_size = model.PATCH_SIZE
             for ops, patch_labels in iter_model():
-                _, logits, _ = ops
+                logits1, logits2, _ = ops
+                logits = logits1 if layer == 1 else logits2
                 _, output_h, output_w, _ = logits.shape
                 predicted_label = np.argmax(logits[0, output_h / 2, output_w / 2, :])
                 true_label = patch_labels[patch_size / 2, patch_size / 2]
@@ -42,7 +43,8 @@ def test_model(sess, model, dataset_iter, use_patches=False, patches_per_image=1
             print "Image #%d: %s Accuracy: %f (time: %.1fs)" % (
                 i, img_id, accuracy / patches_per_image, time.time() - start_time)
         else:
-            for _, logits, _ in iter_model():
+            for logits1, logits2, _ in iter_model():
+                logits = logits1 if layer == 1 else logits2
                 predicted_labels = np.argmax(logits[0], axis=2)
                 true_labels = labels[::4, ::4]
 
@@ -59,12 +61,14 @@ def test_model(sess, model, dataset_iter, use_patches=False, patches_per_image=1
                     i, img_id, accuracy, time.time() - start_time)
 
         if output_dir is not None and color_map is not None:
-            output_filename = os.path.join(output_dir, img_id + '_test.png')
-            predicted_labels = None
-            for _, logits, _ in iter_model():
-                predicted_labels = np.argmax(logits[0], axis=2)
-            predicted_labels = np.kron(predicted_labels, np.ones(shape=[4, 4]))
-            save_labels_array(predicted_labels.astype(np.uint8), output_filename, colors=color_map)
+            for layer_num in [1,2]:
+                output_filename = os.path.join(output_dir, img_id + '_test_%d.png' % layer_num)
+                predicted_labels = None
+                for logits1, logits2, _ in iter_model():
+                    logits = [logits1, logits2][layer_num - 1]
+                    predicted_labels = np.argmax(logits[0], axis=2)
+                predicted_labels = np.kron(predicted_labels, np.ones(shape=[4, 4]))
+                save_labels_array(predicted_labels.astype(np.uint8), output_filename, colors=color_map)
 
     print "%d Images, Total Accuracy: %f" % (i, total_accuracy / i)
     print "Per Class correct counts:", class_correct_counts
@@ -93,6 +97,8 @@ def main():
     parser.add_argument('--test_fraction', type=float, default=-0.2,
                         help='Fraction of data to test on. If positive, tests on first X images, otherwise tests on '
                              'last X images.')
+    parser.add_argument('--layer', choices=[1,2], type=int, default=2,
+                        help='Number of rCNN layers to use.')
     args = parser.parse_args()
 
     # load class labels
@@ -109,7 +115,7 @@ def main():
     sess = tf.Session()
     restore_model(sess, args.model)
 
-    test_model(sess, model, dataset_func, use_patches=args.use_patches, patches_per_image=args.patches_per_image,
+    test_model(sess, model, dataset_func, args.layer, use_patches=args.use_patches, patches_per_image=args.patches_per_image,
                gaussian_sigma=args.gaussian_sigma, output_dir=args.output_dir, color_map=category_colors)
 
 
