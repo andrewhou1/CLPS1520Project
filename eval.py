@@ -14,11 +14,25 @@ from train import run_model_iter
 
 def test_model(sess, model, dataset_iter, layer, use_patches=False, patches_per_image=1000, gaussian_sigma=None,
                color_map=None, output_dir=None):
+    """
+    Tests the given model for accuracy, with the given parameters. Also optionally outputs test labels as images to a given directory.
+    :param sess: A tensorflow session in which to run the model
+    :param model: A CNNModel (an rCNN)
+    :param dataset_iter: An iterator that yields tuples of (images, labels, image_name) of test data
+    :param layer: Which layer of the rCNN to get labels from -- can be 1 or 2
+    :param use_patches: Whether to test individual patches (randomly sampled from each image) or simply whole images
+    :param patches_per_image: Number of patches to sample from each image
+    :param gaussian_sigma: The size of the gaussian filter applied to each input image. By default, no filter is applied.
+    :param color_map: An array of (r,g,b) tuples for each label category. Used to output images.
+    :param output_dir: If not None, the function stores predicted labels (for each layer) in this directory
+    """
     total_accuracy = 0
     class_correct_counts = np.zeros(model.num_classes)
     class_total_counts = np.zeros(model.num_classes)
     i = 0
 
+    # this yields a series of output logits from the model, one for each distinct input
+    # if training on whole images, returns only one output
     def iter_model():
         return run_model_iter(sess, model, image, labels, is_training=False, use_patches=use_patches,
                               patches_per_image=patches_per_image, gaussian_sigma=gaussian_sigma)
@@ -29,6 +43,7 @@ def test_model(sess, model, dataset_iter, layer, use_patches=False, patches_per_
         accuracy = 0.0
         if use_patches:
             patch_size = model.PATCH_SIZE
+            # get output for each patch from the model
             for ops, patch_labels in iter_model():
                 logits1, logits2, _ = ops
                 logits = logits1 if layer == 1 else logits2
@@ -43,7 +58,9 @@ def test_model(sess, model, dataset_iter, layer, use_patches=False, patches_per_
             print "Image #%d: %s Accuracy: %f (time: %.1fs)" % (
                 i, img_id, accuracy / patches_per_image, time.time() - start_time)
         else:
+            # run model on whole image at once
             for logits1, logits2, _ in iter_model():
+                # output size is different for each layer
                 logits = logits1 if layer == 1 else logits2
                 stride = 4 if layer == 2 else 2
                 predicted_labels = np.argmax(logits[0], axis=2)
@@ -61,6 +78,7 @@ def test_model(sess, model, dataset_iter, layer, use_patches=False, patches_per_
                 print "Image #%d: %s: Accuracy: %f (time: %.1fs)" % (
                     i, img_id, accuracy, time.time() - start_time)
 
+        # write outputs to disk
         if output_dir is not None and color_map is not None:
             for layer_num in [1,2]:
                 output_filename = os.path.join(output_dir, img_id + '_test_%d.png' % layer_num)

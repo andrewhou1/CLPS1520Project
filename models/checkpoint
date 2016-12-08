@@ -1,2 +1,2 @@
-model_checkpoint_path: "saved_model.ckpt"
-all_model_checkpoint_paths: "saved_model.ckpt"
+model_checkpoint_path: "fine_tune_15_second_half.ckpt"
+all_model_checkpoint_paths: "fine_tune_15_second_half.ckpt"
