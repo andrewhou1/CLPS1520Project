@@ -1,7 +1,7 @@
 # CLPS 1520 Project - Scene Labeling with Recurrent Convolutional Neural Networks
 
 ## Overview
-This project implements a "Recurrent Convolutional Neural Netowrk" (rCNN) for scene labeling,
+This project implements a "Recurrent Convolutional Neural Network" (rCNN) for scene labeling,
 as seen in [Pinheiro et al, 2014](http://www.jmlr.org/proceedings/papers/v32/pinheiro14.pdf).
 
 ### Summary of files
