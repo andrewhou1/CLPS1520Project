@@ -12,6 +12,18 @@ from preprocessing import read_object_classes, DATASETS, FROM_GAMES, get_patch, 
 
 def run_model_iter(sess, model, image, labels, is_training=False, use_patches=False, patches_per_image=1000,
                    gaussian_sigma=None):
+    """
+    Given an image, runs over model outputs. This is either one label plane for the whole image, or a series of patch labels
+    :param sess:
+    :param model:
+    :param image:
+    :param labels:
+    :param is_training:
+    :param use_patches:
+    :param patches_per_image:
+    :param gaussian_sigma:
+    :return:
+    """
     if is_training:
         # For training, only run loss and train ops
         ops_to_run = [model.loss, model.train_step]
